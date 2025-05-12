@@ -1,0 +1,21 @@
+notes = {}
+
+def add_note():
+    title = input("Title: ")
+    content = input("Content: ")
+    notes[title] = content
+
+def search_notes():
+    q = input("Search keyword: ")
+    for title, content in notes.items():
+        if q in title or q in content:
+            print(f"\n{title}:\n{content}")
+
+while True:
+    cmd = input("1. Add 2. Search 3. Exit: ")
+    if cmd == "1":
+        add_note()
+    elif cmd == "2":
+        search_notes()
+    else:
+        break
