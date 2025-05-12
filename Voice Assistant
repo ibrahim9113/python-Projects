@@ -1,0 +1,26 @@
+import pyttsx3
+import speech_recognition as sr
+
+engine = pyttsx3.init()
+r = sr.Recognizer()
+
+def speak(text):
+    engine.say(text)
+    engine.runAndWait()
+
+while True:
+    try:
+        with sr.Microphone() as source:
+            print("Say something...")
+            audio = r.listen(source)
+            cmd = r.recognize_google(audio)
+            print(f"You said: {cmd}")
+            if "stop" in cmd:
+                speak("Goodbye")
+                break
+            elif "name" in cmd:
+                speak("I am your Python assistant.")
+            else:
+                speak(f"You said: {cmd}")
+    except Exception as e:
+        print("Error:", e)
