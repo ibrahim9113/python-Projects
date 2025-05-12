@@ -1,0 +1,18 @@
+import os, shutil
+
+folder = input("Enter folder path: ")
+
+ext_map = {
+    'Images': ['.jpg', '.png', '.gif'],
+    'Docs': ['.pdf', '.docx', '.txt'],
+    'Code': ['.py', '.js', '.html'],
+}
+
+for f in os.listdir(folder):
+    path = os.path.join(folder, f)
+    ext = os.path.splitext(f)[1]
+    for cat, exts in ext_map.items():
+        if ext in exts:
+            dest = os.path.join(folder, cat)
+            os.makedirs(dest, exist_ok=True)
+            shutil.move(path, os.path.join(dest, f))
