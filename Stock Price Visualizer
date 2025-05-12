@@ -1,0 +1,7 @@
+import yfinance as yf
+import matplotlib.pyplot as plt
+
+ticker = input("Enter stock ticker (e.g. AAPL): ")
+data = yf.download(ticker, period="1mo")
+data['Close'].plot(title=f"{ticker} Price")
+plt.show()
