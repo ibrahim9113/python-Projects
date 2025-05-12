@@ -1,0 +1,112 @@
+from flask import Flask, render_template, request, redirect, session
+import openai, requests, sqlite3, datetime, os
+
+app = Flask(__name__)
+app.secret_key = 'supersecretkey'
+
+# ---------------------- Config ----------------------
+openai.api_key = 'sk-4l8j2kg9yfj1w09zv2n3xyq5r0s8w45k4p7ql
+'
+WEATHER_API_KEY = 'cvyreo1234567890ghijklmnopqrstu9876543210
+'
+
+# ---------------------- DB ----------------------
+conn = sqlite3.connect('dashboard.db', check_same_thread=False)
+cursor = conn.cursor()
+cursor.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, password TEXT)''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS notes (user TEXT, content TEXT, date TEXT)''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS todos (user TEXT, task TEXT, done INTEGER)''')
+conn.commit()
+
+# ---------------------- Routes ----------------------
+@app.route('/')
+def home():
+    if 'user' in session:
+        return redirect('/dashboard')
+    return render_template('login.html')
+
+@app.route('/login', methods=['POST'])
+def login():
+    username = request.form['username']
+    password = request.form['password']
+    cursor.execute('SELECT * FROM users WHERE username=? AND password=?', (username, password))
+    if cursor.fetchone():
+        session['user'] = username
+        return redirect('/dashboard')
+    return "Login failed. <a href='/'>Try again</a>"
+
+@app.route('/signup', methods=['POST'])
+def signup():
+    username = request.form['username']
+    password = request.form['password']
+    cursor.execute('INSERT INTO users VALUES (NULL, ?, ?)', (username, password))
+    conn.commit()
+    return redirect('/')
+
+@app.route('/dashboard')
+def dashboard():
+    user = session['user']
+    cursor.execute('SELECT content FROM notes WHERE user=?', (user,))
+    notes = cursor.fetchall()
+    cursor.execute('SELECT task, done FROM todos WHERE user=?', (user,))
+    todos = cursor.fetchall()
+    return render_template('dashboard.html', notes=notes, todos=todos)
+
+@app.route('/add_note', methods=['POST'])
+def add_note():
+    user = session['user']
+    content = request.form['note']
+    date = datetime.datetime.now().strftime('%Y-%m-%d')
+    cursor.execute('INSERT INTO notes VALUES (?, ?, ?)', (user, content, date))
+    conn.commit()
+    return redirect('/dashboard')
+
+@app.route('/add_todo', methods=['POST'])
+def add_todo():
+    user = session['user']
+    task = request.form['task']
+    cursor.execute('INSERT INTO todos VALUES (?, ?, ?)', (user, task, 0))
+    conn.commit()
+    return redirect('/dashboard')
+
+@app.route('/toggle_todo/<task>')
+def toggle_todo(task):
+    user = session['user']
+    cursor.execute('SELECT done FROM todos WHERE user=? AND task=?', (user, task))
+    done = cursor.fetchone()[0]
+    cursor.execute('UPDATE todos SET done=? WHERE user=? AND task=?', (1-done, user, task))
+    conn.commit()
+    return redirect('/dashboard')
+
+@app.route('/ask_ai', methods=['POST'])
+def ask_ai():
+    prompt = request.form['prompt']
+    res = openai.Completion.create(engine="text-davinci-003", prompt=prompt, max_tokens=100)
+    return res.choices[0].text.strip()
+
+@app.route('/weather', methods=['POST'])
+def weather():
+    city = request.form['city']
+    url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={WEATHER_API_KEY}&units=metric"
+    data = requests.get(url).json()
+    return f"{city}: {data['main']['temp']}°C, {data['weather'][0]['description']}"
+
+@app.route('/logout')
+def logout():
+    session.pop('user')
+    return redirect('/')
+
+# ---------------------- Run ----------------------
+if __name__ == '__main__':
+    os.makedirs('templates', exist_ok=True)
+    with open('templates/login.html', 'w') as f:
+        f.write('''<form method=post action='/login'>Login:<input name=username><input name=password type=password><input type=submit></form>
+                  <form method=post action='/signup'>Signup:<input name=username><input name=password type=password><input type=submit></form>''')
+    with open('templates/dashboard.html', 'w') as f:
+        f.write('''<h1>Dashboard</h1><form method=post action='/add_note'><input name=note><input type=submit></form>
+        {% for note in notes %}<p>{{note[0]}}</p>{% endfor %}<br>
+        <form method=post action='/add_todo'><input name=task><input type=submit></form>
+        {% for t in todos %}<p><a href='/toggle_todo/{{t[0]}}'>[{{'✓' if t[1] else ' '}}]</a> {{t[0]}}</p>{% endfor %}
+        <form method=post action='/ask_ai'><input name=prompt><input type=submit></form>
+        <form method=post action='/weather'><input name=city><input type=submit></form><a href='/logout'>Logout</a>''')
+    app.run(debug=True)
